@@ -6,9 +6,10 @@
 package string
 
 import (
-	"gosimple/types"
 	"strings"
 	"time"
+
+	"github.com/jcdotter/gosimple/types"
 )
 
 // Is evaluates whether 'a' is a string

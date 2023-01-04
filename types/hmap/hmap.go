@@ -6,8 +6,9 @@
 package hmap
 
 import (
-	"gosimple/types"
 	"reflect"
+
+	"github.com/jcdotter/gosimple/types"
 )
 
 // Is evaluates whether 'a' is a map

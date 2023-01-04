@@ -9,9 +9,10 @@
 package time
 
 import (
-	"gosimple/types"
 	"math"
 	"time"
+
+	"github.com/jcdotter/gosimple/types"
 )
 
 // Is evaluates whether 'a' is time.Time
