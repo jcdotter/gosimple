@@ -1798,6 +1798,9 @@ func MapToStruct(m any, s any, f StringFormat, t string) (any, error) {
 			fv.Set(mi.Value())
 		default:
 			mv := mi.Value().Interface()
+			if mv == nil {
+				break
+			}
 			mt := TypeOf(mv)
 			switch TypeOf(fo) {
 
