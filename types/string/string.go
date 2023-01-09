@@ -6,7 +6,6 @@
 package string
 
 import (
-	"strings"
 	"time"
 
 	"github.com/jcdotter/gosimple/types"
@@ -99,54 +98,27 @@ func Time(s any) (time.Time, error) {
 	return types.StringToTime(s)
 }
 
-// SnakeToCamel converts snake case string 's'
-// example_string to camel case format exampleString
-func SnakeToCamel(s string) string {
-	return snakeTo(s, 1)
+// ToCamelCase converts string 's' example_string
+// to camel case format exampleString
+func ToCamelCase(s string) string {
+	return types.ToCamelString(s)
 }
 
-// SnakeToCamel converts snake case string 's'
-// example_string to pascal case format ExampleString
-func SnakeToPascal(s string) string {
-	return snakeTo(s, 0)
+// ToPascalCase converts string 's' example_string
+// to pascal case format ExampleString
+func ToPascalCase(s string) string {
+	return types.ToPascalString(s)
 }
 
-func snakeTo(s string, n int) string {
-	s = strings.ToLower(s)
-	np := strings.Split(s, `_`)
-	for i := n; i < len(np); i++ {
-		np[i] = strings.ToUpper(np[i][:1]) + np[i][1:]
-	}
-	return strings.Join(np, ``)
+// ToSnakeCase converts string 's' exampleString
+// to snake case format example_string
+func ToSnakeCase(s string) string {
+	return types.ToSnakeString(s)
 }
 
-// PascalToCamel converts pascal case string 's'
-// ExampleString to camel case format exampleString
-func PascalToCamel(s string) string {
-	return strings.ToLower(s[:1]) + s[1:]
-}
-
-// CamelToPascal converts camel case string 's'
-// exampleString to pascal case format ExampleString
-func CamelToPascal(s string) string {
-	return strings.ToUpper(s[:1]) + s[1:]
-}
-
-// CamelToSnake converts camel case string 's'
-// exampleString to snake case format example_string
-func CamelToSnake(s string) string {
-	r := string(s[0])
-	for i := 1; i < len(s); i++ {
-		if 91 > s[i] && s[i] > 67 {
-			r += `_`
-		}
-		r += string(s[i])
-	}
-	return strings.ToLower(r)
-}
-
-// PascalToSnake converts pacsal case string 's'
-// ExampleString to snake case format example_string
-func PascalToSnake(s string) string {
-	return CamelToPascal(s)
+// ToPhraseCase converts string 's' exampleString
+// to phrase case format Example string and
+// if case sensative 'c', creating new word at each capital letter
+func ToPhraseCase(s string, c bool) string {
+	return types.ToPhraseString(s, c)
 }

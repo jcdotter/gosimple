@@ -135,6 +135,8 @@ func TypeOf(a any) Type {
 		return Ptr
 	case IsFunc(a):
 		return Func
+	/* case IsAny(a):
+	return Any */
 	default:
 		return Invalid
 	}
@@ -461,6 +463,11 @@ func IsFunc(a any) bool {
 	return reflect.TypeOf(a).Kind() == reflect.Func
 }
 
+// IsAny evaluates whether 'a' is an interface{} (or any)
+func IsAny(a any) bool {
+	return reflect.TypeOf(a).Kind() == reflect.Interface
+}
+
 func IsEmpty(a any) bool {
 	if a == nil {
 		return true
@@ -566,7 +573,7 @@ func BoolToString(b any) (string, error) {
 // Returns error if param 't' type is not time.Time
 func TimeToString(t any) (string, error) {
 	if IsTime(t) {
-		return fmt.Sprint(t.(time.Time).UTC()), nil
+		return fmt.Sprint(t), nil
 	} else {
 		return "", paramTypeError("TimeToString", "time.Time", t)
 	}
@@ -603,6 +610,105 @@ func ToString(a any) (string, error) {
 		return fmt.Sprint(a), nil
 	}
 	return "", paramTypeError("ToString", "string, int, float, uint, bool, time, slice, map or struct", a)
+}
+
+// StringFormat represents the case format of a string
+// Pascal: ExampleString
+// Camel: exampleString
+// Snake: example_string
+// Phrase: Example string
+type StringFormat uint
+
+const (
+	None StringFormat = iota
+	Pascal
+	Camel
+	Snake
+	Phrase
+)
+
+// Format converts string 's' to the StringFormat
+func (f StringFormat) Format(s string) string {
+	switch f {
+	case Pascal:
+		return ToPascalString(s)
+	case Camel:
+		return ToCamelString(s)
+	case Snake:
+		return ToSnakeString(s)
+	case Phrase:
+		return ToSnakeString(s)
+	default:
+		return s
+	}
+}
+
+// ToPascalString converts string 's' example_string
+// to pascal case format ExampleString
+func ToPascalString(s string) string {
+	s = toCamelCase(s)
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// ToCamelString converts string 's' example_string
+// to camel case format exampleString
+func ToCamelString(s string) string {
+	s = toCamelCase(s)
+	return strings.ToLower(s[:1]) + s[1:]
+}
+
+// ToCamelString converts string 's' example_string
+// to camel case format exampleString
+func toCamelCase(s string) string {
+	np := regexp.MustCompile(`[_ \n\t]`).Split(s, -1)
+	for i := 1; i < len(np); i++ {
+		np[i] = strings.ToUpper(np[i][:1]) + np[i][1:]
+	}
+	return strings.Join(np, ``)
+}
+
+// ToSnakeString converts string 's' exampleString
+// to snake case format example_string
+func ToSnakeString(s string) string {
+	return toSnakeCase(s, `_`, true)
+}
+
+// ToPhraseString converts string 's' exampleString
+// to phrase case format Example string and
+// if case sensative 'c', creating new word at each capital letter
+func ToPhraseString(s string, c bool) string {
+	s = toSnakeCase(s, ` `, c)
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// toSnakeCase converts string 's' example String
+// to snake case format example_string
+// using delimiter 'd' to join the words in the string and
+// if case sensative 'c', creating new word at each capital letter
+func toSnakeCase(s string, d string, c bool) string {
+	r := ``
+	w := false
+	for i := 0; i < len(s); i++ {
+		b := []byte{s[i]}
+		// check for spacing
+		if regexp.MustCompile(`[_ \n\t]`).Match(b) {
+			if w {
+				r += d
+				w = false
+			}
+		} else {
+			// check for beginning of word if case sensative
+			if c && regexp.MustCompile(`[A-Z]`).Match(b) && w {
+				r += d
+			}
+			r += string(s[i])
+			w = true
+		}
+	}
+	if c {
+		r = strings.ToLower(r)
+	}
+	return r
 }
 
 // INT CONVERSION FUNCTIONS
@@ -1595,36 +1701,29 @@ func ArrayValType(a any) (Type, error) {
 }
 
 // STRUCT CONVERSION FUNCTIONS
-// KeyValArraysToStruct		converts
-// KeyValPairsToStruct
-// MaptoStruct
-// JsonToStruct
-
-type Val struct {
-	String string
-	Bool   bool
-	Int    int
-	Uint   uint
-	Float  float64
-	Time   time.Time
-	Array  []any
-	Map    map[any]any
-	Struct any
-}
+// KeyValArraysToStruct		converts two arrays to struct 					ALTERNATIVE: none
+// KeyValPairsToStruct 		converts array of key value pairs to struct		ALTERNATIVE: none
+// MapToStruct				converts map and submaps to struct				ALTERNATIVE: none
+// MapToReflectStruct 		converts map to reflect.Value of struct 		ALTERNATIVE: none
+// JsonToStruct 			converts json []byte to struct					ALTERNATIVE: encoding.json.Unmarshal()
+// StructFieldByTag			returns reflect.StructField from tag value 		ALTERNATIVE: none
+// StructFieldNumByTag		returns struct field index from tag value		ALTERNATIVE: none
+// StructTagIndex			returns a map indexing the values of tag 't'	ALTERNATIVE: none
+// StructFieldNameIndex		returns a map indexing field names				ALTERNATIVE: none
 
 // KeyValArraysToStruct converts two arrays to struct
 // first array contains field names (must be strings)
 // second array contains the associated value
 // returns error if any element in first array is not string
-func KeyValArraysToStruct(k any, v any, s ...any) (any, error) {
+func KeyValArraysToStruct(k any, v any, s any, f StringFormat, t string) (any, error) {
 	m, err := KeyValArraysToMap(k, v)
 	if err != nil {
 		return nil, typeError("KeyValArraysToStruct", fmt.Sprint(":", err))
 	}
-	if len(s) > 0 {
-		return mapToStructExisting(m, s[0])
+	if s != nil {
+		return MapToStruct(m, s, f, t)
 	} else {
-		return mapToStructNew(m)
+		return MapToReflectStruct(m, t)
 	}
 }
 
@@ -1632,146 +1731,275 @@ func KeyValArraysToStruct(k any, v any, s ...any) (any, error) {
 // first element in each pair becomes a field name
 // second element in each pair becomes the associated value
 // returns error if first element in any pair is not string
-func KeyValPairsToStruct(a any, s ...any) (any, error) {
+func KeyValPairsToStruct(a any, s any, f StringFormat, t string) (any, error) {
 	m, err := KeyValPairsToMap(a)
 	if err != nil {
 		return nil, typeError("KeyValPairsToStruct", fmt.Sprint(":", err))
 	}
-	if len(s) > 0 {
-		return mapToStructExisting(m, s[0])
+	if s != nil {
+		return MapToStruct(m, s, f, t)
 	} else {
-		return mapToStructNew(m)
+		return MapToReflectStruct(m, t)
 	}
 }
 
-// MapToStruct converts map to struct
-// keys become the field name
-// values become the associated value
-// returns error if keys are not strings
-func MapToStruct(m any, s ...any) (any, error) {
-	if len(s) > 0 {
-		return mapToStructExisting(m, s[0])
-	} else {
-		return mapToStructNew(m)
-	}
-}
+// MapToStruct writes map 'm' to struct 's',
+// converts map keys to StringFormat 'f' unless set to None,
+// matches keys to tag 't' if provided or field name if 't' == "", and
+// returns error if 'm' is not a map or 's' is not a struct
+func MapToStruct(m any, s any, f StringFormat, t string) (any, error) {
 
-func mapToStructExisting(m any, s any) (any, error) {
+	// Param 'm' must be a map and 's' must be a struct or reflect.Value of a struct
 	if !IsMap(m) {
 		return nil, paramTypeError("MapToStruct", "map", m)
 	}
-	// create struct from provided template
-	st := reflect.New(reflect.TypeOf(s)).Elem()
-	for i := 0; i < st.NumField(); i++ {
-		// get field name from struct
-		n := st.Type().Field(i).Tag.Get("json")
-		if n == "" {
-			n = st.Type().Field(i).Name
+	_, err := reflectStruct(s)
+	if err != nil {
+		return nil, paramTypeError("MapToStruct", "struct", s)
+	}
+	sv := reflect.New(reflect.TypeOf(s)).Elem()
+
+	// map 'i' indexes the field names (or the tag values if provided) as map keys
+	// and the struct field indexes (positions) in the struct as map values
+	// i is stored to optimize populating the struct when iterating over map 'm'
+	var i = map[string][]int{}
+	var ok bool
+	if t != "" {
+		if i, ok = StructTagIndex(sv, t); !ok {
+			return nil, paramTypeError("MapToStruct", "valid tag string", t)
 		}
-		// get field value from provided map
-		mv, ok := m.(map[any]any)[n]
-		sv := st.Field(i).Interface()
-		if ok {
-			switch TypeOf(sv) {
+	} else {
+		if i, ok = StructFieldNameIndex(sv); !ok {
+			return nil, typeError("MapToStruct", "struct provided has no fields")
+		}
+	}
+
+	// populate reflect.Value of struct 'sv' with values from map 'm'
+	// where map key equals struct field tag 't' (if provided) or field name
+	mi := reflect.ValueOf(m).MapRange()
+	for mi.Next() {
+
+		// for the map item, determine the corresponding
+		// struct field index and value
+		n := f.Format(mi.Key().Interface().(string))
+		tfi, ok := i[n]
+		if !ok {
+			return nil, typeError("MapToStruct", " '%s' not a valid field in struct: %#v ", n, s)
+		}
+		fi := tfi[0]
+		fv := sv.Field(fi)
+		fo := fv.Interface()
+
+		// populate struct field using the map item value
+		// method of population determined by struct field data type
+		switch {
+		case fo == nil:
+			// if field type is empty interface{}
+			fv.Set(mi.Value())
+		default:
+			mv := mi.Value().Interface()
+			mt := TypeOf(mv)
+			switch TypeOf(fo) {
+
+			// return error if map item value type is not a map
 			case Map:
-				if TypeOf(mv) == Map {
-					st.Field(i).Set(reflect.ValueOf(mv))
-				} else {
-					return nil, paramTypeError("MapToStruct", "map", mv)
+				if mt == Map {
+					fv.Set(reflect.ValueOf(mv))
+					break
 				}
-				break
+				return nil, paramTypeError("MapToStruct", "map", mv)
+
+			// convert map item to struct if a map
+			// set field value if a struct of the same type
+			// or return an error if not a map or matching struct
 			case Struct:
-				if TypeOf(mv) == Map {
-					ns, err := mapToStructExisting(mv, sv)
+				if mt == Map {
+					fn, err := MapToStruct(mv, fo, f, t)
 					if err != nil {
 						return nil, err
 					}
-					st.Field(i).Set(reflect.ValueOf(ns))
-				} else {
-					return nil, paramTypeError("MapToStruct", "map", mv)
+					fv.Set(reflect.ValueOf(fn))
+					break
+				} else if reflect.TypeOf(mv) == fv.Type() {
+					fv.Set(reflect.ValueOf(mv))
+					break
 				}
-				break
+				return nil, paramTypeError("MapToStruct", "map", mv)
+
+			// if struct field is a basic data type
+			// convert map value to match the data type and set value
 			case String, Bool, Int, Float, Uint:
-				iv, err := StrictlyTo(sv, mv)
+				iv, err := StrictlyTo(fo, mv)
 				if err != nil {
-					return nil, paramTypeError("MapToStruct", fmt.Sprint(TypeOf(sv)), mv)
+					return nil, paramTypeError("MapToStruct", fmt.Sprint(TypeOf(fo)), mv)
 				}
-				st.Field(i).Set(reflect.ValueOf(iv[st.Field(i).Kind()]))
+				fv.Set(reflect.ValueOf(iv[fv.Kind()]))
 				break
-			case TypeOf(mv):
-				st.Field(i).Set(reflect.ValueOf(mv))
+
+			case mt:
+				fv.Set(reflect.ValueOf(mv))
+
 			default:
-				return nil, paramTypeError("MapToStruct", fmt.Sprint(TypeOf(sv)), mv)
+				return nil, paramTypeError("MapToStruct", fmt.Sprint(TypeOf(fo)), mv)
 			}
 		}
 	}
-	return st.Interface(), nil
+	return sv.Interface(), nil
 }
 
-func mapToStructNew(m any) (any, error) {
+// MapToStruct writes map 'm' to reflect.Value,
+// converts keys to pascal case struct field names,
+// writes keys to tag 't' if provided or to tag 'json' if not, and
+// returns error if 'm' is not a map
+func MapToReflectStruct(m any, t string) (reflect.Value, error) {
+
+	// Param 'm' must be a map
 	if !IsMap(m) {
-		return nil, paramTypeError("MapToStruct", "map", m)
+		return reflect.Value{}, paramTypeError("MapToStruct", "map", m)
 	}
+
 	// build a list of struct fields from the map
 	fs := []reflect.StructField{}
 	i := reflect.ValueOf(m).MapRange()
 	vals := map[any]any{}
 	for i.Next() {
+
 		// capture key and deep value at i
-		k, str := i.Key().Interface().(string)
-		if !str {
-			return nil, paramTypeError("MapToStruct", "map key to be a string", k)
+		k, isStr := i.Key().Interface().(string)
+		if !isStr {
+			return reflect.Value{}, paramTypeError("MapToStruct", "map key to be a string", k)
 		}
-		mk := strings.ToUpper(k[:1]) + k[1:]
+		mk := ToPascalString(k)
 		v := i.Value().Interface()
 		if IsMap(v) {
-			v, _ = MapToStruct(v)
+			v, _ = MapToReflectStruct(v, t)
 		}
 		vals[mk] = v
+
 		// create struct field
-		fs = append(fs, reflect.StructField{
+		ifs := reflect.StructField{
 			Name: mk,
 			Type: reflect.TypeOf(v),
-			Tag:  reflect.StructTag(`json:"` + k + `"`),
-		})
+		}
+		if t != `` {
+			ifs.Tag = reflect.StructTag(t + `:"` + k + `"`)
+		}
+		fs = append(fs, ifs)
 	}
+
 	// build an empty struct from struct fields
 	s := reflect.New(reflect.StructOf(fs)).Elem()
 	//populate the empty struct with values from the map
 	for k, v := range vals {
 		s.FieldByName(k.(string)).Set(reflect.ValueOf(v))
 	}
-	return s.Interface(), nil
+	return s, nil
 }
 
 // JsonToStruct converts a json object to struct
 // keys become the field name
 // values become the associated values
 // returns error if keys are not strings
-func JsonToStruct(j any, s ...any) (any, error) {
+func JsonToStruct(j any, s any, f StringFormat, t string) (any, error) {
 	m, err := JsonToMap(j)
 	if err != nil {
 		return nil, paramTypeError("JsonToStruct", "json formatted []byte", j)
 	}
-	if len(s) > 0 {
-		return mapToStructExisting(m, s[0])
+	if s != nil {
+		return MapToStruct(m, s, f, t)
 	} else {
-		return mapToStructNew(m)
+		return MapToReflectStruct(m, t)
 	}
 }
 
-// FieldByTag returns the reflect instance of a Field in struct 's'
-// allowing search for a field by tag 't' and its value 'v'
-func StructFieldByTag(s any, t string, v string) (any, error) {
-	r := reflect.ValueOf(s)
-	if r.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("reflect.Value.FieldByTag: value not a struct")
-	}
-	typ := r.Type()
-	for i := 0; i < r.NumField(); i++ {
-		if v == typ.Field(i).Tag.Get(t) {
-			return typ.Field(i), nil
+// StructFieldByTag returns the reflect.StructField in struct 's'
+// by searching for a field by tag 't' and its value 'v'
+func StructFieldByTag(s any, t string, v string) (field reflect.StructField, ok bool) {
+	f, ok := structFieldByTag(s, t, v, true)
+	return f.(reflect.StructField), ok
+}
+
+// FieldByTag returns the reflect.StructField index in struct 's'
+// by searching for a field by tag 't' and its value 'v'
+func StructFieldNumByTag(s any, t string, v string) (field int, ok bool) {
+	f, ok := structFieldByTag(s, t, v, false)
+	return f.(int), ok
+}
+
+// structFieldByTag performs the search of tag 't' value 'v' in struct 's'
+func structFieldByTag(s any, t string, v string, f bool) (field any, ok bool) {
+	index, found := StructTagIndex(s, t)
+	if found {
+		sv, _ := reflectStruct(s)
+		ff, found := index[v]
+		if found {
+			field = ff[0]
+		}
+		if f {
+			field = sv.Type().Field(field.(int))
 		}
 	}
-	return nil, fmt.Errorf("reflect.Value.FieldByTag: could not find value '%s' for tag '%s'", v, t)
+	return
+}
+
+// StructTagIndex returns a map indexing the values of tag 't'
+// in struct 's' with tag value as key and field index as value
+// returns false 'ok' if tag does not exist
+func StructTagIndex(s any, t string) (index map[string][]int, ok bool) {
+	sv, err := reflectStruct(s)
+	if err != nil || t == "" {
+		return
+	}
+	index = map[string][]int{}
+	ok = false
+	st := sv.Type()
+	for i := 0; i < st.NumField(); i++ {
+		if k, found := st.Field(i).Tag.Lookup(t); found {
+			if _, found := index[k]; !found {
+				index[k] = []int{i}
+			} else {
+				index[k] = append(index[k], i)
+			}
+			ok = true
+		}
+	}
+	return
+}
+
+// StructFieldNameIndex returns a map indexing field names
+// in struct 's' with tag value as key and field index as value
+// returns false 'ok' if there are no fields in struct
+func StructFieldNameIndex(s any) (index map[string][]int, ok bool) {
+	sv, err := reflectStruct(s)
+	if err != nil {
+		return
+	}
+	index = map[string][]int{}
+	ok = false
+	st := sv.Type()
+	for i := 0; i < st.NumField(); i++ {
+		k := st.Field(i).Name
+		if _, found := index[k]; !found {
+			index[k] = []int{i}
+		} else {
+			index[k] = append(index[k], i)
+		}
+		ok = true
+	}
+	return
+}
+
+// reflectStruct returns the reflect.Value of struct 's' and
+// returns an error if 's' is not a struct
+func reflectStruct(s any) (reflect.Value, error) {
+	var sv reflect.Value
+	if v, ok := s.(reflect.Value); ok {
+		sv = v
+	} else {
+		sv = reflect.ValueOf(s)
+	}
+	if sv.Kind() != reflect.Struct {
+		return reflect.Value{}, paramTypeError("reflectStruct", "struct", s)
+	}
+	return sv, nil
 }

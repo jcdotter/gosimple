@@ -137,19 +137,19 @@ var convTests = []test{
 	{Array, "StructValues", StructValues, arrayvs, []any{strct}},
 	{aType, "ArrayValType", ArrayValType, Any, []any{arraykv}},
 	// STRUCT CONVERSION FUNCTIONS
-	{Struct, "KeyValArraysToStruct", KeyValArraysToStruct, strctkv, []any{arrayk, array, stkv{}}},
-	{Struct, "KeyValPairsToStruct", KeyValPairsToStruct, strctkv, []any{arraykv, stkv{}}},
-	{Struct, "MapToStruct", MapToStruct, strct, []any{hmap, st{}}},
-	{Struct, "JsonToStruct", JsonToStruct, strct, []any{jsonv, st{}}},
+	{Struct, "KeyValArraysToStruct", KeyValArraysToStruct, strctkv, []any{arrayk, array, stkv{}, None, "json"}},
+	{Struct, "KeyValPairsToStruct", KeyValPairsToStruct, strctkv, []any{arraykv, stkv{}, None, "json"}},
+	{Struct, "MapToStruct", MapToStruct, strct, []any{hmap, st{}, Pascal, ""}},
+	{Struct, "JsonToStruct", JsonToStruct, strct, []any{jsonv, st{}, Pascal, ""}},
 }
 
 func TestConversions(t *testing.T) {
 	tm := time.Now()
 	for _, c := range convTests {
-		fmt.Printf("Testing %s...", c.Name)
+		//fmt.Printf("Testing %s...", c.Name)
 		r, e := runConvTest(c.Type, c.Func, c.Params)
 		if e != nil {
-			fmt.Print("  falied\n")
+			//fmt.Print("  falied\n")
 			t.Fatalf("%s unable handle conversion:\n%s", c.Name, e)
 		}
 		if c.Type == Array {
@@ -157,10 +157,10 @@ func TestConversions(t *testing.T) {
 			c.Validator = sortArr(c.Validator)
 		}
 		if !reflect.DeepEqual(r, c.Validator) {
-			fmt.Print("  failed\n")
+			//fmt.Print("  failed\n")
 			t.Fatalf("%s result error:\nexpected: %#v\nreturned: %#v", c.Name, c.Validator, r)
 		}
-		fmt.Print("  completed\n")
+		//fmt.Print("  completed\n")
 	}
 	d := time.Now().Sub(tm)
 	fmt.Println(d)
@@ -195,10 +195,10 @@ func runConvTest(t Type, f any, p []any) (any, error) {
 		return f.(func(any) ([]any, error))(p[0])
 	case Struct:
 		switch len(p) {
-		case 3:
-			return f.(func(any, any, ...any) (any, error))(p[0], p[1], p[2])
+		case 5:
+			return f.(func(any, any, any, StringFormat, string) (any, error))(p[0], p[1], p[2], p[3].(StringFormat), p[4].(string))
 		default:
-			return f.(func(any, ...any) (any, error))(p[0], p[1])
+			return f.(func(any, any, StringFormat, string) (any, error))(p[0], p[1], p[2].(StringFormat), p[3].(string))
 		}
 	default:
 		return nil, nil
@@ -220,4 +220,45 @@ func sortArr(a any) []any {
 		a = append(a.([]any), v)
 	}
 	return a.([]any)
+}
+
+// Test complex map to struct
+type TestPerson struct {
+	Name      string      `test:"name"`
+	Age       int         `test:"age"`
+	Income    float64     `test:"income"`
+	Residence TestAddress `test:"address"`
+	Work      TestAddress `test:"work_address"`
+}
+
+type TestAddress struct {
+	Street string `test:"street"`
+	City   string `test:"city"`
+	State  string `test:"state"`
+	Zip    string `test:"zip"`
+}
+
+var TestPersonData = map[string]any{
+	"name":   "john smith",
+	"age":    42,
+	"income": 100000.00,
+	"address": map[string]any{
+		"street": "123 home st",
+		"city":   "home town",
+		"state":  "ST",
+		"zip":    "12345",
+	},
+	"work_address": TestAddress{
+		Street: "123 work st",
+		City:   "work town",
+		State:  "ST",
+		Zip:    "12345",
+	},
+}
+
+func tTestMapToStruct(t *testing.T) {
+	_, err := MapToStruct(TestPersonData, TestPerson{}, None, "test")
+	if err != nil {
+		t.Fatalf("\nMapToStruct:\n%v", err)
+	}
 }

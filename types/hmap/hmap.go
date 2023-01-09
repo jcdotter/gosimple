@@ -117,5 +117,5 @@ func FromJson(j any) (map[any]any, error) {
 // values become the associated value
 // returns error if keys are not strings
 func Struct(m any, s ...any) (any, error) {
-	return types.MapToStruct(m, s...)
+	return types.MapToStruct(m, s, types.None, "")
 }
