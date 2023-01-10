@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // paramTypeError formats and returns an error
@@ -80,6 +82,7 @@ const (
 	Uint
 	Bool
 	Time
+	UUID
 	Array
 	Map
 	Struct
@@ -96,6 +99,7 @@ var typeNames = []string{
 	Uint:    "uint",
 	Bool:    "bool",
 	Time:    "time",
+	UUID:    "uuid",
 	Array:   "array",
 	Map:     "map",
 	Struct:  "struct",
@@ -125,6 +129,8 @@ func TypeOf(a any) Type {
 		return Uint
 	case IsTime(a):
 		return Time
+	case IsUUID(a):
+		return UUID
 	case IsArray(a):
 		return Array
 	case IsMap(a):
@@ -136,7 +142,7 @@ func TypeOf(a any) Type {
 	case IsFunc(a):
 		return Func
 	/* case IsAny(a):
-	return Any */
+	   return Any */
 	default:
 		return Invalid
 	}
@@ -187,6 +193,9 @@ func To(t Type, a any) (map[Type]any, error) {
 		break
 	case Time:
 		m[Time], err = ToTime(a)
+		break
+	case UUID:
+		m[UUID], err = ToUUID(a)
 		break
 	default:
 		err = fmt.Errorf("")
@@ -421,6 +430,15 @@ func IsTime(a any) bool {
 	return false
 }
 
+// IsTime evaluates whether 'a' is a UUID:
+//   uuid.UUID
+func IsUUID(a any) bool {
+	if _, ok := a.(uuid.UUID); ok {
+		return true
+	}
+	return false
+}
+
 // IsArray evaluates whether 'a' is an array or slice:
 //   [#]any or []any
 func IsArray(a any) bool {
@@ -577,6 +595,15 @@ func TimeToString(t any) (string, error) {
 	} else {
 		return "", paramTypeError("TimeToString", "time.Time", t)
 	}
+}
+
+// UUIDToString converts a uuid.UUID to a string
+// equivilant to uuid.String()
+func UUIDToString(u any) (string, error) {
+	if !IsUUID(u) {
+		return "", paramTypeError("UUIDToString", "uuid.UUID", u)
+	}
+	return u.(uuid.UUID).String(), nil
 }
 
 // ArrayToString converts an array or slice to string
@@ -1392,6 +1419,48 @@ func ToTime(a any) (time.Time, error) {
 		return TimeToTime(a)
 	default:
 		return time.Time{}, paramTypeError("ToTime", "string, numeric unix time or time", a)
+	}
+}
+
+// UUID CONVERSION FUNCTIONS
+// StringToUUID		converts a string to uuid.UUID 		ALTERNATIVE: uuid.Parse()
+// UUIDToUUID		converts any to asserted uuid.UUID 	ALTERNATIVE: a.(uuid.UUID)
+// NewUUID 			generates a new uuid.UUID 			ALTERNATIVE: uuid.NewUUID()
+
+// StringToUuid converts a string to uuid.UUID
+// using github.com/google/uuid library
+func StringToUUID(s any) (uuid.UUID, error) {
+	if !IsString(s) {
+		return uuid.UUID{}, paramTypeError("StringToUUID", "string", s)
+	}
+	return uuid.Parse(s.(string))
+}
+
+// UUIDToUUID returns an asserted uulid.UUUID
+// returns an error if cannot assert
+func UUIDToUUID(a any) (uuid.UUID, error) {
+	u, ok := a.(uuid.UUID)
+	if !ok {
+		return uuid.UUID{}, paramTypeError("UUIDToUUID", "uuid.UUID", a)
+	}
+	return u, nil
+}
+
+// NewUUID returns a new uuid.UUID
+// equivilant to uuid.NewUUID()
+func NewUUID() (uuid.UUID, error) {
+	return uuid.New(), nil
+}
+
+// ToUUID returns a UUID based in input 'a'
+func ToUUID(a any) (uuid.UUID, error) {
+	switch a.(type) {
+	case string:
+		return StringToUUID(a)
+	case uuid.UUID:
+		return UUIDToUUID(a)
+	default:
+		return uuid.UUID{}, paramTypeError("ToUUID", "uuid.UUID or string", a)
 	}
 }
 

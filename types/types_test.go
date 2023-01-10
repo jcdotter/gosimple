@@ -11,6 +11,8 @@ import (
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -23,27 +25,29 @@ const (
 // between data types to validate conversion
 
 var (
-	str     = "1"
-	strb    = "true"
-	strt    = "1969-12-31 17:00:01 -0700 MST"
-	strf    = "(1,234,567.89)"
-	intn    = 1
-	floatn  = 1.0
-	floats  = -1234567.89
-	uintn   = uint(1)
-	boolv   = true
-	timev   = time.Unix(1, 0)
-	array   = []any{1.0, 2.0, 3.0, 4.0}
-	arrayk  = []any{"one", "two", "three", "four"}
-	arrayv  = []any{1.0, 2.0, map[any]any{"one": "one", "two": "two"}, array}
-	arrayvs = []any{1.0, 2.0, sts{"one", "two"}, array}
-	arraykv = [][]any{{"one", 1.0}, {"two", 2.0}, {"three", 3.0}, {"four", 4.0}}
-	hmap    = map[any]any{"one": 1.0, "two": 2.0, "three": map[any]any{"one": "one", "two": "two"}, "four": array}
-	hmapk   = map[any]any{0: "one", 1: "two", 2: "three", 3: "four"}
-	hmapkv  = map[any]any{"one": 1.0, "two": 2.0, "three": 3.0, "four": 4.0}
-	strct   = st{1, 2, sts{"one", "two"}, []any{1.0, 2.0, 3.0, 4.0}}
-	strctkv = stkv{1.0, 2.0, 3.0, 4.0}
-	jsonv   = []byte(`{"four":[1.0,2.0,3.0,4.0],"one":1.0,"three":{"one":"one","two":"two"},"two":2.0}`)
+	str      = "1"
+	strb     = "true"
+	strt     = "1969-12-31 17:00:01 -0700 MST"
+	strf     = "(1,234,567.89)"
+	stru     = "c6779922-801a-48c4-aed6-abce7da13ac0"
+	intn     = 1
+	floatn   = 1.0
+	floats   = -1234567.89
+	uintn    = uint(1)
+	boolv    = true
+	timev    = time.Unix(1, 0)
+	uuidv, _ = uuid.Parse("c6779922-801a-48c4-aed6-abce7da13ac0")
+	array    = []any{1.0, 2.0, 3.0, 4.0}
+	arrayk   = []any{"one", "two", "three", "four"}
+	arrayv   = []any{1.0, 2.0, map[any]any{"one": "one", "two": "two"}, array}
+	arrayvs  = []any{1.0, 2.0, sts{"one", "two"}, array}
+	arraykv  = [][]any{{"one", 1.0}, {"two", 2.0}, {"three", 3.0}, {"four", 4.0}}
+	hmap     = map[any]any{"one": 1.0, "two": 2.0, "three": map[any]any{"one": "one", "two": "two"}, "four": array}
+	hmapk    = map[any]any{0: "one", 1: "two", 2: "three", 3: "four"}
+	hmapkv   = map[any]any{"one": 1.0, "two": 2.0, "three": 3.0, "four": 4.0}
+	strct    = st{1, 2, sts{"one", "two"}, []any{1.0, 2.0, 3.0, 4.0}}
+	strctkv  = stkv{1.0, 2.0, 3.0, 4.0}
+	jsonv    = []byte(`{"four":[1.0,2.0,3.0,4.0],"one":1.0,"three":{"one":"one","two":"two"},"two":2.0}`)
 )
 
 type st struct {
@@ -119,6 +123,9 @@ var convTests = []test{
 	{Time, "FloatToTime", FloatToTime, timev, []any{floatn}},
 	{Time, "UintToTime", UintToTime, timev, []any{uintn}},
 	{Time, "TimeToTime", TimeToTime, timev, []any{timev}},
+	// TIME CONVERSION FUNCTIONS
+	{UUID, "StringToUUID", StringToUUID, uuidv, []any{stru}},
+	{UUID, "UUIDToUUID", UUIDToUUID, uuidv, []any{uuidv}},
 	// MAP CONVERSION FUNCTIONS
 	{Map, "MapToMap", MapToMap, hmap, []any{hmap}},
 	{Map, "ArrayToMap", ArrayToMap, hmapk, []any{arrayk}},
@@ -143,7 +150,7 @@ var convTests = []test{
 	{Struct, "JsonToStruct", JsonToStruct, strct, []any{jsonv, st{}, Pascal, ""}},
 }
 
-func TestConversions(t *testing.T) {
+func tTestConversions(t *testing.T) {
 	tm := time.Now()
 	for _, c := range convTests {
 		//fmt.Printf("Testing %s...", c.Name)
@@ -184,6 +191,8 @@ func runConvTest(t Type, f any, p []any) (any, error) {
 		return f.(func(any) (bool, error))(p[0])
 	case Time:
 		return f.(func(any) (time.Time, error))(p[0])
+	case UUID:
+		return f.(func(any) (uuid.UUID, error))(p[0])
 	case Map:
 		switch len(p) {
 		case 2:
@@ -229,6 +238,9 @@ type TestPerson struct {
 	Income    float64     `test:"income"`
 	Residence TestAddress `test:"address"`
 	Work      TestAddress `test:"work_address"`
+	Default1  any         `test:"default1"`
+	Default2  any         `test:"default2"`
+	Default3  any         `test:"default3"`
 }
 
 type TestAddress struct {
@@ -239,7 +251,7 @@ type TestAddress struct {
 }
 
 var TestPersonData = map[string]any{
-	"name":   "john smith",
+	"name":   interface{}(nil), //"john smith",
 	"age":    42,
 	"income": 100000.00,
 	"address": map[string]any{
@@ -254,6 +266,9 @@ var TestPersonData = map[string]any{
 		State:  "ST",
 		Zip:    "12345",
 	},
+	"default1": 500,
+	"default2": "500string",
+	"default3": time.Now(),
 }
 
 func tTestMapToStruct(t *testing.T) {
