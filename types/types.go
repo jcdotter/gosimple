@@ -628,13 +628,29 @@ func MapToString(m any) (string, error) {
 	}
 }
 
+func StructToString(s any) (string, error) {
+	if IsStruct(s) {
+		if _, ok := reflect.TypeOf(s).MethodByName("String"); ok {
+			return reflect.ValueOf(s).Call([]reflect.Value{})[0].Interface().(string), nil
+		}
+		return fmt.Sprint(s), nil
+	}
+	return "", paramTypeError("StructToString", "struct", s)
+}
+
 // ToString converts param 'a' of a basic type to string
 // Equivilant to fmt.Sprint(i)
 // Returns error if param 'a' type is not
 // string, int, float, uint, bool, time, slice, map or struct
 func ToString(a any) (string, error) {
+	if IsStruct(a) {
+		return StructToString(a)
+	}
 	if IsValue(a) {
 		return fmt.Sprint(a), nil
+	}
+	if IsPtr(a) {
+		return ToString(&a)
 	}
 	return "", paramTypeError("ToString", "string, int, float, uint, bool, time, slice, map or struct", a)
 }
