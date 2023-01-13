@@ -631,7 +631,7 @@ func MapToString(m any) (string, error) {
 func StructToString(s any) (string, error) {
 	if IsStruct(s) {
 		if _, ok := reflect.TypeOf(s).MethodByName("String"); ok {
-			return reflect.ValueOf(s).Call([]reflect.Value{})[0].Interface().(string), nil
+			return reflect.ValueOf(s).MethodByName("String").Call([]reflect.Value{})[0].Interface().(string), nil
 		}
 		return fmt.Sprint(s), nil
 	}
@@ -650,7 +650,10 @@ func ToString(a any) (string, error) {
 		return fmt.Sprint(a), nil
 	}
 	if IsPtr(a) {
-		return ToString(&a)
+		if reflect.ValueOf(a).Kind() == reflect.Struct {
+			return StructToString(a)
+		}
+		return fmt.Sprint(a), nil
 	}
 	return "", paramTypeError("ToString", "string, int, float, uint, bool, time, slice, map or struct", a)
 }

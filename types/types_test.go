@@ -150,7 +150,7 @@ var convTests = []test{
 	{Struct, "JsonToStruct", JsonToStruct, strct, []any{jsonv, st{}, Pascal, ""}},
 }
 
-func tTestConversions(t *testing.T) {
+func TestConversions(t *testing.T) {
 	tm := time.Now()
 	for _, c := range convTests {
 		//fmt.Printf("Testing %s...", c.Name)
@@ -243,6 +243,10 @@ type TestPerson struct {
 	Default3  any         `test:"default3"`
 }
 
+func (p TestPerson) String() string {
+	return p.Name
+}
+
 type TestAddress struct {
 	Street string `test:"street"`
 	City   string `test:"city"`
@@ -251,7 +255,7 @@ type TestAddress struct {
 }
 
 var TestPersonData = map[string]any{
-	"name":   interface{}(nil), //"john smith",
+	"name":   "john smith", //interface{}(nil),
 	"age":    42,
 	"income": 100000.00,
 	"address": map[string]any{
@@ -271,9 +275,23 @@ var TestPersonData = map[string]any{
 	"default3": time.Now(),
 }
 
-func tTestMapToStruct(t *testing.T) {
+func TestMapToStruct(t *testing.T) {
 	_, err := MapToStruct(TestPersonData, TestPerson{}, None, "test")
 	if err != nil {
 		t.Fatalf("\nMapToStruct:\n%v", err)
+	}
+}
+
+func TestStructToString(t *testing.T) {
+	p, err := MapToStruct(TestPersonData, TestPerson{}, None, "test")
+	if err != nil {
+		t.Fatalf("\nMapToStruct:\n%v", err)
+	}
+	pa := p.(TestPerson)
+
+	ptr := &pa
+	_, e := ToString(ptr)
+	if err != nil {
+		t.Fatalf("\nStructToString:\n%v", e)
 	}
 }
